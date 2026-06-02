@@ -1,0 +1,1401 @@
+asyncapi: 2.6.0
+info:
+  title: Bybit V5 WebSocket API
+  version: '5.0.0'
+  description: |
+    AsyncAPI definition for the Bybit V5 WebSocket API.
+
+    Bybit exposes five public WebSocket endpoints split by product (spot, linear,
+    inverse, option, spread) plus a single authenticated private endpoint for
+    account, position, order, execution, wallet and greeks streams.
+
+    All clients use a shared JSON envelope:
+
+      { "req_id": "<optional>", "op": "<subscribe|unsubscribe|auth|ping>", "args": [...] }
+
+    The server replies with operation acks (`{ success, ret_msg, op, conn_id }`)
+    and with topic push messages (`{ topic, type, ts, data, ... }`).
+
+    Authoritative source: https://bybit-exchange.github.io/docs/v5/ws/connect
+  contact:
+    name: Bybit API Support
+    url: https://bybit-exchange.github.io/docs/v5/intro
+  license:
+    name: Bybit Terms of Service
+    url: https://www.bybit.com/en/help-center/article/Terms-of-Service
+  x-source-docs:
+    - https://bybit-exchange.github.io/docs/v5/ws/connect
+    - https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook
+    - https://bybit-exchange.github.io/docs/v5/websocket/public/trade
+    - https://bybit-exchange.github.io/docs/v5/websocket/public/ticker
+    - https://bybit-exchange.github.io/docs/v5/websocket/public/kline
+    - https://bybit-exchange.github.io/docs/v5/websocket/public/liquidation
+    - https://bybit-exchange.github.io/docs/v5/websocket/public/all-liquidation
+    - https://bybit-exchange.github.io/docs/v5/websocket/private/order
+    - https://bybit-exchange.github.io/docs/v5/websocket/private/execution
+    - https://bybit-exchange.github.io/docs/v5/websocket/private/fast-execution
+    - https://bybit-exchange.github.io/docs/v5/websocket/private/position
+    - https://bybit-exchange.github.io/docs/v5/websocket/private/wallet
+    - https://bybit-exchange.github.io/docs/v5/websocket/private/greek
+    - https://bybit-exchange.github.io/docs/v5/websocket/private/dcp
+
+defaultContentType: application/json
+
+servers:
+  publicSpot:
+    url: stream.bybit.com/v5/public/spot
+    protocol: wss
+    description: V5 public WebSocket stream for spot markets (mainnet).
+  publicLinear:
+    url: stream.bybit.com/v5/public/linear
+    protocol: wss
+    description: V5 public WebSocket stream for linear (USDT/USDC perpetual & USDT futures) markets.
+  publicInverse:
+    url: stream.bybit.com/v5/public/inverse
+    protocol: wss
+    description: V5 public WebSocket stream for inverse contracts.
+  publicOption:
+    url: stream.bybit.com/v5/public/option
+    protocol: wss
+    description: V5 public WebSocket stream for USDC options.
+  publicSpread:
+    url: stream.bybit.com/v5/public/spread
+    protocol: wss
+    description: V5 public WebSocket stream for spread trading instruments.
+  private:
+    url: stream.bybit.com/v5/private
+    protocol: wss
+    description: V5 private WebSocket stream for order, execution, position, wallet, greeks and DCP.
+    security:
+      - bybitApiKey: []
+  publicSpotTestnet:
+    url: stream-testnet.bybit.com/v5/public/spot
+    protocol: wss
+    description: Testnet equivalent of publicSpot.
+  publicLinearTestnet:
+    url: stream-testnet.bybit.com/v5/public/linear
+    protocol: wss
+    description: Testnet equivalent of publicLinear.
+  publicInverseTestnet:
+    url: stream-testnet.bybit.com/v5/public/inverse
+    protocol: wss
+    description: Testnet equivalent of publicInverse.
+  publicOptionTestnet:
+    url: stream-testnet.bybit.com/v5/public/option
+    protocol: wss
+    description: Testnet equivalent of publicOption.
+  privateTestnet:
+    url: stream-testnet.bybit.com/v5/private
+    protocol: wss
+    description: Testnet equivalent of the private stream.
+    security:
+      - bybitApiKey: []
+
+channels:
+
+  orderbook.{depth}.{symbol}:
+    description: |
+      Orderbook snapshot/delta stream.
+
+      Supported depths:
+        - spot:    1 (10ms), 50 (20ms), 200 (100ms), 1000 (200ms)
+        - linear:  1 (10ms), 50 (20ms), 200 (100ms), 1000 (200ms)
+        - inverse: 1 (10ms), 50 (20ms), 200 (100ms), 1000 (200ms)
+        - option:  25 (20ms), 100 (100ms)
+
+      Size = 0 in a delta means cancellation. A `u` of 1 after a snapshot means
+      the orderbook service has restarted and the snapshot must be re-applied.
+    servers:
+      - publicSpot
+      - publicLinear
+      - publicInverse
+      - publicOption
+      - publicSpotTestnet
+      - publicLinearTestnet
+      - publicInverseTestnet
+      - publicOptionTestnet
+    parameters:
+      depth:
+        description: Orderbook depth level.
+        schema:
+          type: string
+          enum: ['1', '25', '50', '100', '200', '1000']
+      symbol:
+        description: Trading symbol, e.g. BTCUSDT.
+        schema:
+          type: string
+    subscribe:
+      operationId: subOrderbook
+      summary: Receive orderbook snapshots and deltas.
+      message:
+        $ref: '#/components/messages/OrderbookMessage'
+    publish:
+      operationId: pubSubscribeOrderbook
+      summary: Subscribe to orderbook topic.
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  publicTrade.{symbol}:
+    description: |
+      Public trade stream. For options the parameter is the base coin (e.g. BTC),
+      for all other categories it is the contract symbol (e.g. BTCUSDT). A single
+      message may contain up to 1024 trades.
+    servers:
+      - publicSpot
+      - publicLinear
+      - publicInverse
+      - publicOption
+      - publicSpotTestnet
+      - publicLinearTestnet
+      - publicInverseTestnet
+      - publicOptionTestnet
+    parameters:
+      symbol:
+        description: Symbol (spot/linear/inverse) or base coin (option).
+        schema:
+          type: string
+    subscribe:
+      operationId: subPublicTrade
+      message:
+        $ref: '#/components/messages/PublicTradeMessage'
+    publish:
+      operationId: pubSubscribePublicTrade
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  tickers.{symbol}:
+    description: |
+      Ticker stream. Spot pushes snapshots only at 50ms. Linear, inverse and
+      option push a full snapshot followed by deltas at 100ms.
+    servers:
+      - publicSpot
+      - publicLinear
+      - publicInverse
+      - publicOption
+      - publicSpotTestnet
+      - publicLinearTestnet
+      - publicInverseTestnet
+      - publicOptionTestnet
+    parameters:
+      symbol:
+        description: Trading symbol (e.g. BTCUSDT, BTC-30JUN26-65000-C).
+        schema:
+          type: string
+    subscribe:
+      operationId: subTickers
+      message:
+        oneOf:
+          - $ref: '#/components/messages/TickerSpotMessage'
+          - $ref: '#/components/messages/TickerLinearInverseMessage'
+          - $ref: '#/components/messages/TickerOptionMessage'
+    publish:
+      operationId: pubSubscribeTickers
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  kline.{interval}.{symbol}:
+    description: |
+      Kline (candlestick) stream. Pushed every 1-60s. `confirm=true` indicates
+      the candle is closed.
+    servers:
+      - publicSpot
+      - publicLinear
+      - publicInverse
+      - publicOption
+      - publicSpotTestnet
+      - publicLinearTestnet
+      - publicInverseTestnet
+      - publicOptionTestnet
+    parameters:
+      interval:
+        description: Kline interval.
+        schema:
+          type: string
+          enum: ['1', '3', '5', '15', '30', '60', '120', '240', '360', '720', 'D', 'W', 'M']
+      symbol:
+        description: Trading symbol.
+        schema:
+          type: string
+    subscribe:
+      operationId: subKline
+      message:
+        $ref: '#/components/messages/KlineMessage'
+    publish:
+      operationId: pubSubscribeKline
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  liquidation.{symbol}:
+    description: |
+      DEPRECATED. Liquidation stream for a contract symbol. At most one
+      liquidation per second per symbol. Replaced by `allLiquidation.{symbol}`.
+    servers:
+      - publicLinear
+      - publicInverse
+      - publicLinearTestnet
+      - publicInverseTestnet
+    parameters:
+      symbol:
+        description: Contract symbol.
+        schema:
+          type: string
+    subscribe:
+      operationId: subLiquidation
+      message:
+        $ref: '#/components/messages/LiquidationMessage'
+    publish:
+      operationId: pubSubscribeLiquidation
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  allLiquidation.{symbol}:
+    description: |
+      All-liquidation stream. Pushed at 500ms intervals. Covers USDT, USDC and
+      inverse contracts.
+    servers:
+      - publicLinear
+      - publicInverse
+      - publicLinearTestnet
+      - publicInverseTestnet
+    parameters:
+      symbol:
+        description: Contract symbol.
+        schema:
+          type: string
+    subscribe:
+      operationId: subAllLiquidation
+      message:
+        $ref: '#/components/messages/AllLiquidationMessage'
+    publish:
+      operationId: pubSubscribeAllLiquidation
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  order:
+    description: |
+      Private order stream. Subscribe to `order` (all categories) or to the
+      categorised variants `order.spot`, `order.linear`, `order.inverse`,
+      `order.option`. Categorised and all-in-one topics cannot be mixed in a
+      single connection.
+    servers:
+      - private
+      - privateTestnet
+    subscribe:
+      operationId: subOrder
+      message:
+        $ref: '#/components/messages/OrderMessage'
+    publish:
+      operationId: pubSubscribeOrder
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  execution:
+    description: |
+      Private execution stream. Subscribe to `execution` or categorised
+      `execution.spot|linear|inverse|option`.
+    servers:
+      - private
+      - privateTestnet
+    subscribe:
+      operationId: subExecution
+      message:
+        $ref: '#/components/messages/ExecutionMessage'
+    publish:
+      operationId: pubSubscribeExecution
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  execution.fast:
+    description: |
+      Fast execution stream. Lower latency than `execution`, only trade-type
+      executions, with a reduced field set. Categorised variants:
+      `execution.fast.spot`, `execution.fast.linear`, `execution.fast.inverse`,
+      `execution.fast.option`.
+    servers:
+      - private
+      - privateTestnet
+    subscribe:
+      operationId: subFastExecution
+      message:
+        $ref: '#/components/messages/FastExecutionMessage'
+    publish:
+      operationId: pubSubscribeFastExecution
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  position:
+    description: |
+      Private position stream. Subscribe to `position` or categorised
+      `position.linear|inverse|option`. Spot does not push position updates.
+    servers:
+      - private
+      - privateTestnet
+    subscribe:
+      operationId: subPosition
+      message:
+        $ref: '#/components/messages/PositionMessage'
+    publish:
+      operationId: pubSubscribePosition
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  wallet:
+    description: |
+      Private wallet stream. Pushes balance changes for the unified trading
+      account. No snapshot on subscribe.
+    servers:
+      - private
+      - privateTestnet
+    subscribe:
+      operationId: subWallet
+      message:
+        $ref: '#/components/messages/WalletMessage'
+    publish:
+      operationId: pubSubscribeWallet
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  greeks:
+    description: |
+      Private greeks stream (options only). Pushes account-wide totals per base
+      coin.
+    servers:
+      - private
+      - privateTestnet
+    subscribe:
+      operationId: subGreeks
+      message:
+        $ref: '#/components/messages/GreeksMessage'
+    publish:
+      operationId: pubSubscribeGreeks
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  dcp:
+    description: |
+      Disconnect-Cancel-Protect trigger stream. Subscribe variants:
+      `dcp.future`, `dcp.spot`, `dcp.option`. When all private connections that
+      subscribe to a `dcp` topic become inactive within the configured time
+      window, DCP triggers and cancels open orders for that product.
+    servers:
+      - private
+      - privateTestnet
+    publish:
+      operationId: pubSubscribeDcp
+      message:
+        $ref: '#/components/messages/SubscribeRequest'
+
+  auth:
+    description: |
+      Auth handshake. Send before subscribing on the private endpoint.
+
+      Signature: `HMAC_SHA256(secret, "GET/realtime" + expires)` where `expires`
+      is a millisecond Unix timestamp at least 1s in the future.
+    servers:
+      - private
+      - privateTestnet
+    publish:
+      operationId: pubAuth
+      message:
+        $ref: '#/components/messages/AuthRequest'
+    subscribe:
+      operationId: subAuthAck
+      message:
+        $ref: '#/components/messages/OpAck'
+
+  ping:
+    description: |
+      Heartbeat. Clients must send a ping every 20 seconds; server responds with
+      a pong. Idle connections are closed after ~5 minutes.
+    servers:
+      - publicSpot
+      - publicLinear
+      - publicInverse
+      - publicOption
+      - publicSpread
+      - private
+      - publicSpotTestnet
+      - publicLinearTestnet
+      - publicInverseTestnet
+      - publicOptionTestnet
+      - privateTestnet
+    publish:
+      operationId: pubPing
+      message:
+        $ref: '#/components/messages/PingRequest'
+    subscribe:
+      operationId: subPong
+      message:
+        $ref: '#/components/messages/PongMessage'
+
+components:
+  securitySchemes:
+    bybitApiKey:
+      type: apiKey
+      in: user
+      description: |
+        Private stream auth. Client sends:
+          { "op": "auth", "args": [api_key, expires, signature] }
+        Signature = HMAC_SHA256(secret, "GET/realtime" + expires).
+
+  messages:
+
+    SubscribeRequest:
+      name: SubscribeRequest
+      title: Subscribe / Unsubscribe envelope
+      summary: Subscribe or unsubscribe to one or more topics.
+      payload:
+        type: object
+        required: [op, args]
+        properties:
+          req_id:
+            type: string
+            description: Optional client-supplied correlation id echoed in the ack.
+          op:
+            type: string
+            enum: [subscribe, unsubscribe]
+          args:
+            type: array
+            items:
+              type: string
+            description: List of topic strings to (un)subscribe.
+      examples:
+        - payload:
+            req_id: 'test'
+            op: subscribe
+            args:
+              - orderbook.1.BTCUSDT
+              - publicTrade.BTCUSDT
+
+    AuthRequest:
+      name: AuthRequest
+      title: Auth handshake
+      payload:
+        type: object
+        required: [op, args]
+        properties:
+          req_id:
+            type: string
+          op:
+            type: string
+            enum: [auth]
+          args:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items:
+              oneOf:
+                - type: string
+                - type: integer
+            description: '[api_key, expires (ms), signature]'
+      examples:
+        - payload:
+            req_id: '10001'
+            op: auth
+            args:
+              - 'xxxxxxxxxxxxxxxxxx'
+              - 1662350400000
+              - 'a1b2c3d4...'
+
+    PingRequest:
+      name: PingRequest
+      payload:
+        type: object
+        required: [op]
+        properties:
+          req_id:
+            type: string
+          op:
+            type: string
+            enum: [ping]
+
+    PongMessage:
+      name: PongMessage
+      payload:
+        type: object
+        properties:
+          req_id:
+            type: string
+          op:
+            type: string
+            enum: [pong, ping]
+          args:
+            type: array
+            items:
+              type: string
+          conn_id:
+            type: string
+          success:
+            type: boolean
+          ret_msg:
+            type: string
+
+    OpAck:
+      name: OpAck
+      title: Operation acknowledgement
+      payload:
+        type: object
+        properties:
+          success:
+            type: boolean
+          ret_msg:
+            type: string
+          conn_id:
+            type: string
+          op:
+            type: string
+          req_id:
+            type: string
+
+    OrderbookMessage:
+      name: OrderbookMessage
+      title: Orderbook push
+      payload:
+        type: object
+        required: [topic, type, ts, data]
+        properties:
+          topic:
+            type: string
+            description: e.g. orderbook.50.BTCUSDT
+          type:
+            type: string
+            enum: [snapshot, delta]
+          ts:
+            type: integer
+            description: System timestamp (ms).
+          cts:
+            type: integer
+            description: Matching engine timestamp (ms); aligns with publicTrade.
+          data:
+            type: object
+            required: [s, b, a, u, seq]
+            properties:
+              s:
+                type: string
+                description: Symbol.
+              b:
+                type: array
+                description: Bids, sorted descending by price. Each entry is [price, size]; size=0 means level removed.
+                items:
+                  type: array
+                  minItems: 2
+                  maxItems: 2
+                  items:
+                    type: string
+              a:
+                type: array
+                description: Asks, sorted ascending by price. Each entry is [price, size]; size=0 means level removed.
+                items:
+                  type: array
+                  minItems: 2
+                  maxItems: 2
+                  items:
+                    type: string
+              u:
+                type: integer
+                description: Update id. u=1 after a snapshot means service restart.
+              seq:
+                type: integer
+                description: Cross-stream sequence number.
+
+    PublicTradeMessage:
+      name: PublicTradeMessage
+      title: Public trade push
+      payload:
+        type: object
+        required: [topic, type, ts, data]
+        properties:
+          topic:
+            type: string
+          type:
+            type: string
+            enum: [snapshot]
+          ts:
+            type: integer
+          data:
+            type: array
+            items:
+              type: object
+              required: [T, s, S, v, p, i]
+              properties:
+                T:
+                  type: integer
+                  description: Trade timestamp (ms).
+                s:
+                  type: string
+                  description: Symbol.
+                S:
+                  type: string
+                  enum: [Buy, Sell]
+                  description: Taker side.
+                v:
+                  type: string
+                  description: Trade size.
+                p:
+                  type: string
+                  description: Trade price.
+                L:
+                  type: string
+                  description: Tick direction (futures/perps only).
+                i:
+                  type: string
+                  description: Trade id.
+                BT:
+                  type: boolean
+                  description: Block trade flag.
+                RPI:
+                  type: boolean
+                  description: RPI trade flag.
+                seq:
+                  type: integer
+                mP:
+                  type: string
+                  description: Mark price (options).
+                iP:
+                  type: string
+                  description: Index price (options).
+                mIv:
+                  type: string
+                  description: Mark IV (options).
+                iv:
+                  type: string
+                  description: IV (options).
+
+    TickerSpotMessage:
+      name: TickerSpotMessage
+      title: Ticker push (spot)
+      payload:
+        type: object
+        required: [topic, type, ts, data]
+        properties:
+          topic:
+            type: string
+          type:
+            type: string
+            enum: [snapshot]
+          ts:
+            type: integer
+          cs:
+            type: integer
+          data:
+            type: object
+            properties:
+              symbol:
+                type: string
+              lastPrice:
+                type: string
+              highPrice24h:
+                type: string
+              lowPrice24h:
+                type: string
+              prevPrice24h:
+                type: string
+              volume24h:
+                type: string
+              turnover24h:
+                type: string
+              price24hPcnt:
+                type: string
+              usdIndexPrice:
+                type: string
+
+    TickerLinearInverseMessage:
+      name: TickerLinearInverseMessage
+      title: Ticker push (linear / inverse)
+      payload:
+        type: object
+        required: [topic, type, ts, data]
+        properties:
+          topic:
+            type: string
+          type:
+            type: string
+            enum: [snapshot, delta]
+          ts:
+            type: integer
+          cs:
+            type: integer
+          data:
+            type: object
+            properties:
+              symbol:
+                type: string
+              tickDirection:
+                type: string
+              price24hPcnt:
+                type: string
+              lastPrice:
+                type: string
+              prevPrice24h:
+                type: string
+              highPrice24h:
+                type: string
+              lowPrice24h:
+                type: string
+              prevPrice1h:
+                type: string
+              markPrice:
+                type: string
+              indexPrice:
+                type: string
+              openInterest:
+                type: string
+              openInterestValue:
+                type: string
+              turnover24h:
+                type: string
+              volume24h:
+                type: string
+              nextFundingTime:
+                type: string
+              fundingRate:
+                type: string
+              bid1Price:
+                type: string
+              bid1Size:
+                type: string
+              ask1Price:
+                type: string
+              ask1Size:
+                type: string
+              deliveryTime:
+                type: string
+              basisRate:
+                type: string
+              deliveryFeeRate:
+                type: string
+              predictedDeliveryPrice:
+                type: string
+
+    TickerOptionMessage:
+      name: TickerOptionMessage
+      title: Ticker push (option)
+      payload:
+        type: object
+        required: [topic, type, ts, data]
+        properties:
+          topic:
+            type: string
+          type:
+            type: string
+            enum: [snapshot]
+          ts:
+            type: integer
+          id:
+            type: string
+          data:
+            type: object
+            properties:
+              symbol:
+                type: string
+              bidPrice:
+                type: string
+              bidSize:
+                type: string
+              bidIv:
+                type: string
+              askPrice:
+                type: string
+              askSize:
+                type: string
+              askIv:
+                type: string
+              lastPrice:
+                type: string
+              highPrice24h:
+                type: string
+              lowPrice24h:
+                type: string
+              markPrice:
+                type: string
+              indexPrice:
+                type: string
+              markPriceIv:
+                type: string
+              underlyingPrice:
+                type: string
+              openInterest:
+                type: string
+              turnover24h:
+                type: string
+              volume24h:
+                type: string
+              totalVolume:
+                type: string
+              totalTurnover:
+                type: string
+              delta:
+                type: string
+              gamma:
+                type: string
+              vega:
+                type: string
+              theta:
+                type: string
+              predictedDeliveryPrice:
+                type: string
+              change24h:
+                type: string
+
+    KlineMessage:
+      name: KlineMessage
+      title: Kline push
+      payload:
+        type: object
+        required: [topic, type, ts, data]
+        properties:
+          topic:
+            type: string
+          type:
+            type: string
+            enum: [snapshot]
+          ts:
+            type: integer
+          data:
+            type: array
+            items:
+              type: object
+              required: [start, end, interval, open, close, high, low, volume, turnover, confirm, timestamp]
+              properties:
+                start:
+                  type: integer
+                  description: Candle open time (ms).
+                end:
+                  type: integer
+                  description: Candle close time (ms).
+                interval:
+                  type: string
+                open:
+                  type: string
+                close:
+                  type: string
+                high:
+                  type: string
+                low:
+                  type: string
+                volume:
+                  type: string
+                turnover:
+                  type: string
+                confirm:
+                  type: boolean
+                  description: True when the candle is closed.
+                timestamp:
+                  type: integer
+                  description: Last match timestamp (ms).
+
+    LiquidationMessage:
+      name: LiquidationMessage
+      title: Liquidation push (deprecated)
+      payload:
+        type: object
+        required: [topic, type, ts, data]
+        properties:
+          topic:
+            type: string
+          type:
+            type: string
+            enum: [snapshot]
+          ts:
+            type: integer
+          data:
+            type: object
+            properties:
+              T:
+                type: integer
+                description: Updated timestamp (ms).
+              updatedTime:
+                type: integer
+              symbol:
+                type: string
+              side:
+                type: string
+                enum: [Buy, Sell]
+              size:
+                type: string
+              price:
+                type: string
+
+    AllLiquidationMessage:
+      name: AllLiquidationMessage
+      title: All-liquidation push
+      payload:
+        type: object
+        required: [topic, type, ts, data]
+        properties:
+          topic:
+            type: string
+          type:
+            type: string
+            enum: [snapshot]
+          ts:
+            type: integer
+          data:
+            type: array
+            items:
+              type: object
+              required: [T, s, S, v, p]
+              properties:
+                T:
+                  type: integer
+                  description: Updated timestamp (ms).
+                s:
+                  type: string
+                  description: Symbol.
+                S:
+                  type: string
+                  enum: [Buy, Sell]
+                  description: Position side being liquidated.
+                v:
+                  type: string
+                  description: Executed size.
+                p:
+                  type: string
+                  description: Bankruptcy price.
+
+    OrderMessage:
+      name: OrderMessage
+      title: Order push
+      payload:
+        type: object
+        required: [topic, creationTime, data]
+        properties:
+          id:
+            type: string
+          topic:
+            type: string
+          creationTime:
+            type: integer
+          data:
+            type: array
+            items:
+              type: object
+              properties:
+                category:
+                  type: string
+                  enum: [spot, linear, inverse, option]
+                symbol:
+                  type: string
+                orderId:
+                  type: string
+                orderLinkId:
+                  type: string
+                isLeverage:
+                  type: string
+                blockTradeId:
+                  type: string
+                side:
+                  type: string
+                  enum: [Buy, Sell]
+                positionIdx:
+                  type: integer
+                orderStatus:
+                  type: string
+                cancelType:
+                  type: string
+                rejectReason:
+                  type: string
+                timeInForce:
+                  type: string
+                price:
+                  type: string
+                qty:
+                  type: string
+                avgPrice:
+                  type: string
+                leavesQty:
+                  type: string
+                leavesValue:
+                  type: string
+                cumExecQty:
+                  type: string
+                cumExecValue:
+                  type: string
+                cumExecFee:
+                  type: string
+                feeCurrency:
+                  type: string
+                orderType:
+                  type: string
+                  enum: [Market, Limit]
+                stopOrderType:
+                  type: string
+                triggerPrice:
+                  type: string
+                takeProfit:
+                  type: string
+                stopLoss:
+                  type: string
+                tpTriggerBy:
+                  type: string
+                slTriggerBy:
+                  type: string
+                triggerDirection:
+                  type: integer
+                triggerBy:
+                  type: string
+                closeOnTrigger:
+                  type: boolean
+                reduceOnly:
+                  type: boolean
+                lastPriceOnCreated:
+                  type: string
+                createdTime:
+                  type: string
+                updatedTime:
+                  type: string
+                placeType:
+                  type: string
+                smpType:
+                  type: string
+                smpGroup:
+                  type: integer
+                smpOrderId:
+                  type: string
+                slLimitPrice:
+                  type: string
+                tpLimitPrice:
+                  type: string
+                tpslMode:
+                  type: string
+
+    ExecutionMessage:
+      name: ExecutionMessage
+      title: Execution push
+      payload:
+        type: object
+        required: [topic, creationTime, data]
+        properties:
+          id:
+            type: string
+          topic:
+            type: string
+          creationTime:
+            type: integer
+          data:
+            type: array
+            items:
+              type: object
+              properties:
+                category:
+                  type: string
+                  enum: [spot, linear, inverse, option]
+                symbol:
+                  type: string
+                closedSize:
+                  type: string
+                execFee:
+                  type: string
+                execId:
+                  type: string
+                execPrice:
+                  type: string
+                execQty:
+                  type: string
+                execType:
+                  type: string
+                execValue:
+                  type: string
+                feeRate:
+                  type: string
+                tradeIv:
+                  type: string
+                markIv:
+                  type: string
+                blockTradeId:
+                  type: string
+                markPrice:
+                  type: string
+                indexPrice:
+                  type: string
+                underlyingPrice:
+                  type: string
+                leavesQty:
+                  type: string
+                orderId:
+                  type: string
+                orderLinkId:
+                  type: string
+                orderPrice:
+                  type: string
+                orderQty:
+                  type: string
+                orderType:
+                  type: string
+                stopOrderType:
+                  type: string
+                side:
+                  type: string
+                  enum: [Buy, Sell]
+                execTime:
+                  type: string
+                isLeverage:
+                  type: string
+                isMaker:
+                  type: boolean
+                seq:
+                  type: integer
+                marketUnit:
+                  type: string
+                execPnl:
+                  type: string
+                feeCurrency:
+                  type: string
+
+    FastExecutionMessage:
+      name: FastExecutionMessage
+      title: Fast execution push
+      payload:
+        type: object
+        required: [topic, creationTime, data]
+        properties:
+          topic:
+            type: string
+          creationTime:
+            type: integer
+          data:
+            type: array
+            items:
+              type: object
+              properties:
+                category:
+                  type: string
+                  enum: [spot, linear, inverse, option]
+                symbol:
+                  type: string
+                orderId:
+                  type: string
+                execId:
+                  type: string
+                orderLinkId:
+                  type: string
+                execPrice:
+                  type: string
+                execQty:
+                  type: string
+                side:
+                  type: string
+                  enum: [Buy, Sell]
+                isMaker:
+                  type: boolean
+                execTime:
+                  type: string
+                seq:
+                  type: integer
+
+    PositionMessage:
+      name: PositionMessage
+      title: Position push
+      payload:
+        type: object
+        required: [topic, creationTime, data]
+        properties:
+          id:
+            type: string
+          topic:
+            type: string
+          creationTime:
+            type: integer
+          data:
+            type: array
+            items:
+              type: object
+              properties:
+                category:
+                  type: string
+                  enum: [linear, inverse, option]
+                symbol:
+                  type: string
+                side:
+                  type: string
+                  enum: [Buy, Sell, '']
+                size:
+                  type: string
+                positionIdx:
+                  type: integer
+                tradeMode:
+                  type: integer
+                positionValue:
+                  type: string
+                riskId:
+                  type: integer
+                riskLimitValue:
+                  type: string
+                entryPrice:
+                  type: string
+                markPrice:
+                  type: string
+                leverage:
+                  type: string
+                positionBalance:
+                  type: string
+                autoAddMargin:
+                  type: integer
+                positionMM:
+                  type: string
+                positionIM:
+                  type: string
+                liqPrice:
+                  type: string
+                bustPrice:
+                  type: string
+                tpslMode:
+                  type: string
+                takeProfit:
+                  type: string
+                stopLoss:
+                  type: string
+                trailingStop:
+                  type: string
+                unrealisedPnl:
+                  type: string
+                curRealisedPnl:
+                  type: string
+                cumRealisedPnl:
+                  type: string
+                sessionAvgPrice:
+                  type: string
+                breakEvenPrice:
+                  type: string
+                createdTime:
+                  type: string
+                updatedTime:
+                  type: string
+                positionStatus:
+                  type: string
+                adlRankIndicator:
+                  type: integer
+                isReduceOnly:
+                  type: boolean
+                mmrSysUpdatedTime:
+                  type: string
+                leverageSysUpdatedTime:
+                  type: string
+                seq:
+                  type: integer
+                delta:
+                  type: string
+                gamma:
+                  type: string
+                vega:
+                  type: string
+                theta:
+                  type: string
+
+    WalletMessage:
+      name: WalletMessage
+      title: Wallet push
+      payload:
+        type: object
+        required: [topic, creationTime, data]
+        properties:
+          id:
+            type: string
+          topic:
+            type: string
+            enum: [wallet]
+          creationTime:
+            type: integer
+          data:
+            type: array
+            items:
+              type: object
+              properties:
+                accountType:
+                  type: string
+                  description: e.g. UNIFIED, CONTRACT, SPOT.
+                accountLTV:
+                  type: string
+                accountIMRate:
+                  type: string
+                accountMMRate:
+                  type: string
+                totalEquity:
+                  type: string
+                totalWalletBalance:
+                  type: string
+                totalMarginBalance:
+                  type: string
+                totalAvailableBalance:
+                  type: string
+                totalPerpUPL:
+                  type: string
+                totalInitialMargin:
+                  type: string
+                totalMaintenanceMargin:
+                  type: string
+                coin:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      coin:
+                        type: string
+                      equity:
+                        type: string
+                      usdValue:
+                        type: string
+                      walletBalance:
+                        type: string
+                      free:
+                        type: string
+                      locked:
+                        type: string
+                      spotHedgingQty:
+                        type: string
+                      borrowAmount:
+                        type: string
+                      availableToBorrow:
+                        type: string
+                      availableToWithdraw:
+                        type: string
+                      accruedInterest:
+                        type: string
+                      totalOrderIM:
+                        type: string
+                      totalPositionIM:
+                        type: string
+                      totalPositionMM:
+                        type: string
+                      unrealisedPnl:
+                        type: string
+                      cumRealisedPnl:
+                        type: string
+                      bonus:
+                        type: string
+                      collateralSwitch:
+                        type: boolean
+                      marginCollateral:
+                        type: boolean
+                      spotBorrow:
+                        type: string
+
+    GreeksMessage:
+      name: GreeksMessage
+      title: Greeks push
+      payload:
+        type: object
+        required: [topic, creationTime, data]
+        properties:
+          id:
+            type: string
+          topic:
+            type: string
+            enum: [greeks]
+          creationTime:
+            type: integer
+          data:
+            type: array
+            items:
+              type: object
+              properties:
+                baseCoin:
+                  type: string
+                totalDelta:
+                  type: string
+                totalGamma:
+                  type: string
+                totalVega:
+                  type: string
+                totalTheta:
+                  type: string
