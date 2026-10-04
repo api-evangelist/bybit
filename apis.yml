@@ -35,11 +35,11 @@ x-tier-reason: bulk-registered-from-public-apis
 tags:
   - Cryptocurrency
   - Public APIs
+  - Real-Time
 apis:
   - name: Bybit
     description: "Cryptocurrency data feed and algorithmic trading"
     humanURL: https://bybit-exchange.github.io/docs/linear/#t-introduction
-    baseURL: https://bybit-exchange.github.io/docs/linear/#t-introduction
     tags:
       - Cryptocurrency
     properties:
