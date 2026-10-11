@@ -1,0 +1,11 @@
+[
+  {
+    "repo": "bybit",
+    "captured_at": "2026-10-11T183629",
+    "source_url": "https://bybit-exchange.github.io/docs/linear/#t-introduction",
+    "source_type": "Website",
+    "file": "bybit-2026-10-11T183629.png",
+    "bytes": 71074,
+    "capture": "playwright-local"
+  }
+]
